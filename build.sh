@@ -4,7 +4,14 @@ set -e
 cd "$(dirname "$0")"
 APP=noTunesRevived.app
 rm -rf $APP && mkdir -p $APP/Contents/MacOS $APP/Contents/Resources
-swiftc -O main.swift -o $APP/Contents/MacOS/noTunesRevived
+if [[ -n "$UNIVERSAL" ]]; then
+  T=$(mktemp -d)
+  swiftc -O -target arm64-apple-macos12 main.swift -o $T/arm64
+  swiftc -O -target x86_64-apple-macos12 main.swift -o $T/x86_64
+  lipo -create $T/arm64 $T/x86_64 -output $APP/Contents/MacOS/noTunesRevived
+else
+  swiftc -O main.swift -o $APP/Contents/MacOS/noTunesRevived
+fi
 cp assets/tray-on.png assets/tray-off.png $APP/Contents/Resources/
 ICONSET=$(mktemp -d)/AppIcon.iconset && mkdir -p $ICONSET
 for s in 16 32 128 256 512; do

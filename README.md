@@ -7,9 +7,9 @@ noTunes Revived helps you prevent Apple Music from opening when you don't want i
 ```
 
 ## Menu
-<img width="226" height="126" alt="image" src="https://github.com/user-attachments/assets/6ed31192-c4e4-4ae0-81ff-5188e98d2ac6" />
 - **Blocking Music** – toggle blocking on/off
 - **Show Menu Bar Icon** – hide the tray icon; open the app again to bring it back
+<img width="226" height="126" alt="image" src="https://github.com/user-attachments/assets/6ed31192-c4e4-4ae0-81ff-5188e98d2ac6" />
 
 ## Credits
 App and menu bar icons are from [noTunes](https://github.com/tombonez/noTunes) by tombonez (MIT)

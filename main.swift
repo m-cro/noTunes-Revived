@@ -1,6 +1,7 @@
 import Cocoa
 import MediaPlayer
 import AVFoundation
+import CoreAudio
 
 let musicID = "com.apple.Music"
 let selfID = "local.notunesrevived"
@@ -11,6 +12,9 @@ final class Delegate: NSObject, NSApplicationDelegate {
     var showIcon = UserDefaults.standard.object(forKey: "showIcon") as? Bool ?? true
     var showItem: NSMenuItem!
     var enabled = true
+    var btOnly = UserDefaults.standard.bool(forKey: "bluetoothOnly")
+    var btItem: NSMenuItem!
+    var btConnected = false
     var toggle: NSMenuItem!
     var silence: AVAudioPlayer?
     var armed = false
@@ -25,6 +29,9 @@ final class Delegate: NSObject, NSApplicationDelegate {
         showItem = NSMenuItem(title: "Show Menu Bar Icon", action: #selector(toggleIcon), keyEquivalent: "")
         showItem.state = .on
         menu.addItem(showItem)
+        btItem = NSMenuItem(title: "Only When Bluetooth Audio Connected", action: #selector(toggleBT), keyEquivalent: "")
+        btItem.state = btOnly ? .on : .off
+        menu.addItem(btItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         applyIconSetting()
@@ -40,6 +47,7 @@ final class Delegate: NSObject, NSApplicationDelegate {
             c.addTarget { _ in .success }
         }
 
+        watchBluetooth()
         bootstrapClients()
         watchClients()
         killMusic()
@@ -49,7 +57,7 @@ final class Delegate: NSObject, NSApplicationDelegate {
     // MARK: arming. Armed (silent audio + Now Playing info) only while no other app is a Now Playing client.
 
     func update() {
-        if enabled && others.isEmpty { arm() } else { disarm() }
+        if enabled && others.isEmpty && (!btOnly || btConnected) { arm() } else { disarm() }
     }
 
     func arm() {
@@ -71,6 +79,53 @@ final class Delegate: NSObject, NSApplicationDelegate {
         let info = MPNowPlayingInfoCenter.default()
         info.playbackState = .stopped
         info.nowPlayingInfo = nil
+    }
+
+    // MARK: Bluetooth audio output detection (CoreAudio)
+
+    func hasBluetoothOutput() -> Bool {
+        var addr = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDevices,
+                                              mScope: kAudioObjectPropertyScopeGlobal,
+                                              mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size) == noErr else { return false }
+        var ids = [AudioDeviceID](repeating: 0, count: Int(size) / MemoryLayout<AudioDeviceID>.size)
+        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &addr, 0, nil, &size, &ids) == noErr else { return false }
+        for id in ids {
+            var t: UInt32 = 0
+            var tsize = UInt32(MemoryLayout<UInt32>.size)
+            var ta = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyTransportType,
+                                                mScope: kAudioObjectPropertyScopeGlobal,
+                                                mElement: kAudioObjectPropertyElementMain)
+            guard AudioObjectGetPropertyData(id, &ta, 0, nil, &tsize, &t) == noErr,
+                  t == kAudioDeviceTransportTypeBluetooth || t == kAudioDeviceTransportTypeBluetoothLE else { continue }
+            var ssize: UInt32 = 0
+            var sa = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreams,
+                                                mScope: kAudioDevicePropertyScopeOutput,
+                                                mElement: kAudioObjectPropertyElementMain)
+            if AudioObjectGetPropertyDataSize(id, &sa, 0, nil, &ssize) == noErr, ssize > 0 { return true }
+        }
+        return false
+    }
+
+    func watchBluetooth() {
+        btConnected = hasBluetoothOutput()
+        var addr = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDevices,
+                                              mScope: kAudioObjectPropertyScopeGlobal,
+                                              mElement: kAudioObjectPropertyElementMain)
+        AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &addr, .main) { [weak self] _, _ in
+            guard let self = self else { return }
+            self.btConnected = self.hasBluetoothOutput()
+            self.update()
+        }
+    }
+
+    @objc func toggleBT() {
+        btOnly.toggle()
+        UserDefaults.standard.set(btOnly, forKey: "bluetoothOnly")
+        btItem.state = btOnly ? .on : .off
+        btConnected = hasBluetoothOutput()
+        update()
     }
 
     // MARK: tracking Now Playing clients via mediaremoted's log

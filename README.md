@@ -1,4 +1,4 @@
-noTunes Revived helps you prevent Apple Music from opening when you don't want it (on newer versions of MacOS). The [original noTunes](https://github.com/tombonez/noTunes.git) just kills iTunes and Apple Music AFTER a launch, and the original noTunes implementation doesn't seem to work on modern versions of MacOS. noTunes Revived, on the other hand, registers itself as a "Now-Playing" consumer/client if no other media player is registered.
+noTunes Revived helps you prevent Apple Music from opening when you don't want it (on newer versions of MacOS). The [original noTunes](https://github.com/tombonez/noTunes.git) just kills iTunes and Apple Music AFTER a launch, which means you'll still see the window flash and lose tab focus. noTunes Revived, on the other hand, registers itself as a "Now-Playing" consumer/client if no other media player is registered.
 
 ## Build
 ```sh

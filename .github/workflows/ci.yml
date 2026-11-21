@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint shell syntax
+        run: zsh -n build.sh
+
+      - name: Typecheck Swift
+        run: swiftc -typecheck main.swift
+
+      - name: Build (native)
+        run: ./build.sh
+
+      - name: Build (universal)
+        run: UNIVERSAL=1 ./build.sh
+
+      - name: Verify bundle
+        run: |
+          APP=noTunesRevived.app
+          plutil -lint $APP/Contents/Info.plist
+          archs=$(lipo -archs $APP/Contents/MacOS/noTunesRevived)
+          echo "archs: $archs"
+          [[ "$archs" == *arm64* && "$archs" == *x86_64* ]] || { echo "not universal"; exit 1; }
+          for f in AppIcon.icns tray-on.png tray-off.png; do
+            test -s $APP/Contents/Resources/$f || { echo "missing $f"; exit 1; }
+          done
+          codesign --verify --strict $APP
+
+      - name: Upload app
+        uses: actions/upload-artifact@v4
+        with:
+          name: noTunesRevived-${{ github.sha }}
+          path: noTunesRevived.app
+          retention-days: 7
